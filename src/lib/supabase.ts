@@ -149,6 +149,7 @@ export async function createProduct(product: Omit<Product, 'id' | 'created_at' |
 
   if (error) {
     console.error('Erreur lors de la création du produit:', error);
+    console.error('Détails:', error.message, error.details, error.hint);
     return null;
   }
 
