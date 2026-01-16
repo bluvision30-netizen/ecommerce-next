@@ -25,48 +25,87 @@ export default function NewProductPage() {
     rating: "",
     reviews_count: "",
     tags: "",
+    sections: [] as string[],
   });
 
   const categories = ["Téléphones", "Laptops", "TV", "Accessoires"];
+  
+  const availableSections = [
+    { value: "hero", label: "Hero (Page d&apos;accueil - Produit vedette)" },
+    { value: "deals", label: "Offres Spéciales" },
+    { value: "popular", label: "Produits Populaires" },
+    { value: "trending", label: "Tendances" },
+    { value: "recent", label: "Nouveautés" },
+  ];
+
+  const handleSectionToggle = (section: string) => {
+    setFormData(prev => ({
+      ...prev,
+      sections: prev.sections.includes(section)
+        ? prev.sections.filter(s => s !== section)
+        : [...prev.sections, section]
+    }));
+  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Vérifier si Cloudinary est configuré
+    console.log("Fichier sélectionné:", file.name, file.size);
+
     const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
     const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 
+    console.log("Cloud Name:", cloudName);
+    console.log("Upload Preset:", uploadPreset);
+
     if (!cloudName || !uploadPreset) {
-      toast.error("Cloudinary n'est pas configuré. Utilisez une URL d'image à la place.");
+      toast.error("Cloudinary n&apos;est pas configuré. Cloud: " + cloudName + ", Preset: " + uploadPreset);
+      return;
+    }
+
+    // Vérifier la taille (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("L&apos;image est trop grande. Maximum 10MB.");
       return;
     }
 
     setUploading(true);
+    toast.loading("Upload en cours...", { id: "upload" });
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("upload_preset", uploadPreset);
+      const formDataUpload = new FormData();
+      formDataUpload.append("file", file);
+      formDataUpload.append("upload_preset", uploadPreset);
+
+      console.log("Début upload vers Cloudinary...");
 
       const response = await fetch(
         `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
         {
           method: "POST",
-          body: formData,
+          body: formDataUpload,
         }
       );
 
+      console.log("Réponse Cloudinary:", response.status);
+
       const data = await response.json();
+      console.log("Data Cloudinary:", data);
 
       if (data.secure_url) {
         setImagePreview(data.secure_url);
         setFormData((prev) => ({ ...prev, image_url: data.secure_url }));
-        toast.success("Image téléchargée avec succès !");
+        toast.success("Image téléchargée avec succès !", { id: "upload" });
+      } else if (data.error) {
+        console.error("Erreur Cloudinary:", data.error);
+        toast.error("Erreur Cloudinary: " + data.error.message, { id: "upload" });
+      } else {
+        toast.error("Erreur inconnue lors de l&apos;upload", { id: "upload" });
       }
     } catch (error) {
       console.error("Erreur upload:", error);
-      toast.error("Erreur lors du téléchargement de l'image");
+      toast.error("Erreur lors du téléchargement: " + (error as Error).message, { id: "upload" });
     } finally {
       setUploading(false);
     }
@@ -76,7 +115,7 @@ export default function NewProductPage() {
     e.preventDefault();
 
     if (!formData.image_url) {
-      toast.error("Veuillez ajouter une image ou une URL d'image");
+      toast.error("Veuillez ajouter une image ou une URL d&apos;image");
       return;
     }
 
@@ -91,8 +130,17 @@ export default function NewProductPage() {
         ? Math.round(((originalPrice - price) / originalPrice) * 100)
         : null;
 
+      // Générer le slug
+      const slug = formData.name
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .trim() + '-' + Date.now();
+
       const productData = {
         name: formData.name,
+        slug: slug,
         description: formData.description || null,
         price,
         original_price: originalPrice,
@@ -104,6 +152,7 @@ export default function NewProductPage() {
         rating: formData.rating ? parseFloat(formData.rating) : null,
         reviews_count: formData.reviews_count ? parseInt(formData.reviews_count) : null,
         tags: formData.tags ? formData.tags.split(",").map((t) => t.trim()) : null,
+        sections: formData.sections.length > 0 ? formData.sections : null,
       };
 
       const result = await createProduct(productData);
@@ -144,7 +193,6 @@ export default function NewProductPage() {
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Image du produit</h2>
 
           <div className="space-y-4">
-            {/* Preview */}
             {imagePreview && (
               <div className="relative w-full h-64 bg-gray-100 rounded-lg overflow-hidden">
                 <img
@@ -165,7 +213,6 @@ export default function NewProductPage() {
               </div>
             )}
 
-            {/* Upload Button */}
             {!imagePreview && (
               <div>
                 <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
@@ -178,7 +225,7 @@ export default function NewProductPage() {
                     <p className="mb-2 text-sm text-gray-500">
                       <span className="font-semibold">Cliquez pour uploader</span> ou glissez-déposez
                     </p>
-                    <p className="text-xs text-gray-500">PNG, JPG jusqu à 10MB</p>
+                    <p className="text-xs text-gray-500">PNG, JPG jusqu&apos;à 10MB</p>
                   </div>
                   <input
                     type="file"
@@ -191,7 +238,6 @@ export default function NewProductPage() {
               </div>
             )}
 
-            {/* URL Alternative */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-300"></div>
@@ -203,7 +249,7 @@ export default function NewProductPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                URL de image
+                URL de l&apos;image
               </label>
               <input
                 type="url"
@@ -383,7 +429,7 @@ export default function NewProductPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Nombre avis
+                Nombre d&apos;avis
               </label>
               <input
                 type="number"
@@ -395,6 +441,48 @@ export default function NewProductPage() {
               />
             </div>
           </div>
+        </div>
+
+        {/* Sections d'affichage */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Sections d&apos;affichage</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Sélectionnez où ce produit doit apparaître sur le site
+          </p>
+
+          <div className="space-y-3">
+            {availableSections.map((section) => (
+              <label
+                key={section.value}
+                className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+              >
+                <input
+                  type="checkbox"
+                  checked={formData.sections.includes(section.value)}
+                  onChange={() => handleSectionToggle(section.value)}
+                  className="mt-1 w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
+                />
+                <div>
+                  <p className="font-medium text-gray-900">{section.label}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {section.value === 'hero' && 'Produit mis en avant sur la bannière principale'}
+                    {section.value === 'deals' && 'Affiché dans la section "Offres Spéciales"'}
+                    {section.value === 'popular' && 'Affiché dans "Produits Populaires"'}
+                    {section.value === 'trending' && 'Affiché dans "Tendances du Moment"'}
+                    {section.value === 'recent' && 'Affiché dans "Nouveautés"'}
+                  </p>
+                </div>
+              </label>
+            ))}
+          </div>
+
+          {formData.sections.length === 0 && (
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-sm text-yellow-800">
+                ⚠️ Aucune section sélectionnée. Le produit sera visible uniquement sur la page &quot;Tous les produits&quot;.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Actions */}

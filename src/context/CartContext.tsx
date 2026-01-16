@@ -1,19 +1,10 @@
 "use client";
 
 import { createContext, useContext, useState, ReactNode } from "react";
+import { Product as SupabaseProduct } from "@/lib/supabase";
 
-export interface Product {
-  id: number;
-  name: string;
-  price: number;
-  originalPrice?: number;
-  discount?: number;
-  image: string;
-  category: string;
-  description?: string;
-  rating?: number;
-  reviews?: number;
-  inStock?: boolean;
+export interface Product extends SupabaseProduct {
+  image: string; // Alias pour compatibilité
 }
 
 export interface CartItem extends Product {
@@ -35,19 +26,25 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
 
-  const addToCart = (product: Product, quantity: number = 1) => {
+  const addToCart = (product: SupabaseProduct, quantity: number = 1) => {
+    // Convertir le produit Supabase en format Cart avec alias image
+    const cartProduct: Product = {
+      ...product,
+      image: product.image_url, // Mapper image_url vers image
+    };
+
     setCart((prevCart) => {
-      const existingItem = prevCart.find((item) => item.id === product.id);
+      const existingItem = prevCart.find((item) => item.id === cartProduct.id);
       
       if (existingItem) {
         return prevCart.map((item) =>
-          item.id === product.id
+          item.id === cartProduct.id
             ? { ...item, quantity: item.quantity + quantity }
             : item
         );
       }
       
-      return [...prevCart, { ...product, quantity }];
+      return [...prevCart, { ...cartProduct, quantity }];
     });
   };
 

@@ -1,22 +1,15 @@
-import { supabase } from "@/lib/supabase";
+import { supabase, Product as SupabaseProduct } from "@/lib/supabase";
 
-// Types pour les produits
-export interface Product {
-  id: number;
-  name: string;
-  price: number;
+// Types pour les produits (compatible avec CartContext)
+export interface Product extends SupabaseProduct {
+  image: string; // Alias pour compatibilité
   originalPrice?: number;
-  discount?: number;
-  image: string;
-  category: string;
-  description?: string;
-  rating?: number;
   reviews?: number;
   inStock?: boolean;
 }
 
 // Interface pour les données Supabase
-interface SupabaseProduct {
+interface SupabaseProductRaw {
   id: number;
   name: string;
   price: number | string;
@@ -28,30 +21,47 @@ interface SupabaseProduct {
   rating?: number | string | null;
   reviews_count?: number | null;
   in_stock: boolean;
+  slug: string;
+  sections?: string[] | null;
 }
 
 // Fonction pour convertir les données Supabase au format attendu
-function mapSupabaseProduct(dbProduct: SupabaseProduct): Product {
+function mapSupabaseProduct(dbProduct: SupabaseProductRaw): Product {
   return {
+    ...dbProduct,
     id: dbProduct.id,
     name: dbProduct.name,
     price: typeof dbProduct.price === 'string' ? parseFloat(dbProduct.price) : dbProduct.price,
+    original_price: dbProduct.original_price 
+      ? (typeof dbProduct.original_price === 'string' 
+          ? parseFloat(dbProduct.original_price) 
+          : dbProduct.original_price)
+      : null,
     originalPrice: dbProduct.original_price 
       ? (typeof dbProduct.original_price === 'string' 
           ? parseFloat(dbProduct.original_price) 
           : dbProduct.original_price)
       : undefined,
-    discount: dbProduct.discount || undefined,
-    image: dbProduct.image_url,
+    discount: dbProduct.discount || null,
+    image: dbProduct.image_url, // Mapper vers image pour compatibilité
+    image_url: dbProduct.image_url,
     category: dbProduct.category,
-    description: dbProduct.description || undefined,
+    description: dbProduct.description || null,
     rating: dbProduct.rating 
       ? (typeof dbProduct.rating === 'string' 
           ? parseFloat(dbProduct.rating) 
           : dbProduct.rating)
-      : undefined,
+      : null,
+    reviews_count: dbProduct.reviews_count || null,
     reviews: dbProduct.reviews_count || undefined,
+    in_stock: dbProduct.in_stock,
     inStock: dbProduct.in_stock,
+    slug: dbProduct.slug,
+    sections: dbProduct.sections || null,
+    stock_quantity: null,
+    tags: null,
+    created_at: '',
+    updated_at: '',
   };
 }
 

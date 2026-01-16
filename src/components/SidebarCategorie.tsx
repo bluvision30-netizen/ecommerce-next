@@ -1,37 +1,41 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Smartphone, Laptop, Tv, Headphones, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
+import { getCategoryStats, CategoryStats } from "@/lib/supabase";
 
 export default function SidebarCategorie() {
   const router = useRouter();
+  const [categoryStats, setCategoryStats] = useState<CategoryStats[]>([]);
 
-  const categories = [
-    { 
-      name: "Téléphones", 
-      icon: Smartphone,
-      count: 8,
-      color: "text-blue-600 bg-blue-50"
-    },
-    { 
-      name: "Laptops", 
-      icon: Laptop,
-      count: 6,
-      color: "text-purple-600 bg-purple-50"
-    },
-    { 
-      name: "TV", 
-      icon: Tv,
-      count: 4,
-      color: "text-orange-600 bg-orange-50"
-    },
-    { 
-      name: "Accessoires", 
-      icon: Headphones,
-      count: 4,
-      color: "text-green-600 bg-green-50"
-    },
-  ];
+  const getCategoryIcon = (categoryName: string) => {
+    const icons: Record<string, React.ComponentType<{ className?: string }>> = {
+      "Téléphones": Smartphone,
+      "Laptops": Laptop,
+      "TV": Tv,
+      "Accessoires": Headphones,
+    };
+    return icons[categoryName] || Smartphone;
+  };
+
+  const getCategoryColor = (categoryName: string) => {
+    const colors: Record<string, string> = {
+      "Téléphones": "text-blue-600 bg-blue-50",
+      "Laptops": "text-purple-600 bg-purple-50",
+      "TV": "text-orange-600 bg-orange-50",
+      "Accessoires": "text-green-600 bg-green-50",
+    };
+    return colors[categoryName] || "text-blue-600 bg-blue-50";
+  };
+
+  useEffect(() => {
+    async function loadStats() {
+      const stats = await getCategoryStats();
+      setCategoryStats(stats);
+    }
+    loadStats();
+  }, []);
 
   const priceRanges = [
     { label: "Prix croissant", value: "price-asc", icon: TrendingUp },
@@ -61,24 +65,26 @@ export default function SidebarCategorie() {
           >
             Tous les produits
           </button>
-          {categories.map((cat) => {
-            const IconComponent = cat.icon;
+          {categoryStats.map((cat) => {
+            const IconComponent = getCategoryIcon(cat.category);
+            const colorClass = getCategoryColor(cat.category);
+            
             return (
               <button
-                key={cat.name}
-                onClick={() => handleCategoryClick(cat.name)}
+                key={cat.category}
+                onClick={() => handleCategoryClick(cat.category)}
                 className="w-full flex items-center justify-between px-4 py-3 rounded-xl hover:bg-slate-50 transition-all duration-200 group"
               >
                 <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${cat.color} group-hover:scale-110 transition-transform`}>
+                  <div className={`p-2 rounded-lg ${colorClass} group-hover:scale-110 transition-transform`}>
                     <IconComponent className="w-4 h-4" />
                   </div>
                   <span className="font-medium text-slate-700 group-hover:text-amber-600">
-                    {cat.name}
+                    {cat.category}
                   </span>
                 </div>
                 <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
-                  {cat.count}
+                  {cat.in_stock_count}
                 </span>
               </button>
             );
@@ -113,14 +119,14 @@ export default function SidebarCategorie() {
         </div>
       </div>
 
-      {/* Section Promotions */}
+      {/* Section Promotions - Redirection vers /deals */}
       <div className="bg-gradient-to-br from-red-500 to-orange-500 rounded-2xl shadow-lg p-6 text-white">
         <h3 className="text-lg font-bold mb-2">🔥 Offres Spéciales</h3>
         <p className="text-sm text-white/90 mb-4">
-          Jusqu'à -50% sur une sélection de produits
+          Jusqu&apos;à -50% sur une sélection de produits
         </p>
         <button 
-          onClick={() => router.push('/products')}
+          onClick={() => router.push('/deals')}
           className="w-full bg-white text-orange-600 font-semibold py-2 rounded-lg hover:bg-orange-50 transition"
         >
           Voir les offres

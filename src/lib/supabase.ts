@@ -15,6 +15,8 @@ export interface Product {
   in_stock: boolean;
   stock_quantity: number | null;
   tags: string[] | null;
+  slug: string;
+  sections: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -99,6 +101,21 @@ export async function getProductById(id: number): Promise<Product | null> {
     .from('products')
     .select('*')
     .eq('id', id)
+    .single();
+
+  if (error) {
+    console.error('Erreur lors de la récupération du produit:', error);
+    return null;
+  }
+
+  return data;
+}
+
+export async function getProductBySlug(slug: string): Promise<Product | null> {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .eq('slug', slug)
     .single();
 
   if (error) {
@@ -281,6 +298,12 @@ export async function updateOrderStatus(id: number, status: Order['status']): Pr
 // FONCTIONS POUR LES CATÉGORIES
 // ============================================
 
+export interface CategoryStats {
+  category: string;
+  product_count: number;
+  in_stock_count: number;
+}
+
 export async function getAllCategories(): Promise<Category[]> {
   const { data, error } = await supabase
     .from('categories')
@@ -289,6 +312,39 @@ export async function getAllCategories(): Promise<Category[]> {
 
   if (error) {
     console.error('Erreur lors de la récupération des catégories:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+export async function getCategoryStats(): Promise<CategoryStats[]> {
+  const { data, error } = await supabase
+    .from('category_stats')
+    .select('*');
+
+  if (error) {
+    console.error('Erreur lors de la récupération des stats:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+// ============================================
+// FONCTIONS POUR LES SECTIONS
+// ============================================
+
+export async function getProductsBySection(section: string): Promise<Product[]> {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .contains('sections', [section])
+    .eq('in_stock', true)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Erreur lors de la récupération des produits par section:', error);
     return [];
   }
 

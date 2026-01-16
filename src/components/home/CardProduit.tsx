@@ -15,6 +15,9 @@ export default function CardProduit({ product }: CardProduitProps) {
   const { addToCart } = useCart();
   const [showSuccess, setShowSuccess] = useState(false);
   
+  // Utiliser image_url ou image pour compatibilité
+  const imageUrl = product.image_url || product.image || '';
+  
   const hasDiscount = product.originalPrice && product.originalPrice > product.price;
   const discountPercent = hasDiscount 
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
@@ -28,7 +31,9 @@ export default function CardProduit({ product }: CardProduitProps) {
   };
 
   const handleClick = () => {
-    router.push(`/product/${product.id}`);
+    // Utiliser le slug s'il existe, sinon l'ID
+    const url = product.slug ? `/product/${product.slug}` : `/product/${product.id}`;
+    router.push(url);
   };
 
   return (
@@ -64,9 +69,13 @@ export default function CardProduit({ product }: CardProduitProps) {
         {/* Image avec effet de zoom */}
         <div className="relative h-44 mb-4 flex items-center justify-center overflow-hidden rounded-2xl bg-white/50">
           <img 
-            src={product.image} 
+            src={imageUrl} 
             alt={product.name} 
             className="h-40 object-contain group-hover:scale-110 transition-transform duration-500"
+            onError={(e) => {
+              // Fallback si l'image ne charge pas
+              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x400?text=Image+Non+Disponible';
+            }}
           />
           {/* Gradient overlay subtil au hover */}
           <div className="absolute inset-0 bg-gradient-to-t from-slate-900/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
