@@ -1,119 +1,157 @@
-"use client";
+'use client';
 
-import { ShoppingCart, TrendingUp, Zap } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useCart } from "@/context/CartContext";
-import { Product } from "@/services/productService";
-import { useState } from "react";
+import Link from 'next/link';
+import Image from 'next/image';
+import { ShoppingCart, Star } from 'lucide-react';
+import { useCart } from '@/context/CartContext';
+import type { Product } from '@/lib/supabase';
 
 interface CardProduitProps {
   product: Product;
 }
 
 export default function CardProduit({ product }: CardProduitProps) {
-  const router = useRouter();
   const { addToCart } = useCart();
-  const [showSuccess, setShowSuccess] = useState(false);
-  
-  // Utiliser image_url ou image pour compatibilité
-  const imageUrl = product.image_url || product.image || '';
-  
-  const hasDiscount = product.originalPrice && product.originalPrice > product.price;
-  const discountPercent = hasDiscount 
-    ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
-    : 0;
+
+  // ✅ Validation de l'URL d'image
+  const imageUrl = product.image_url && product.image_url.trim() !== '' 
+    ? product.image_url 
+    : '/placeholder-product.jpg'; // Image par défaut
+
+  const discountedPrice = product.discount
+    ? product.price * (1 - product.discount / 100)
+    : product.price;
 
   const handleAddToCart = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    addToCart(product, 1);
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 2000);
+    e.preventDefault();
+    addToCart(product);
   };
 
-  const handleClick = () => {
-    // Utiliser le slug s'il existe, sinon l'ID
-    const url = product.slug ? `/product/${product.slug}` : `/product/${product.id}`;
-    router.push(url);
-  };
+  // Rating par défaut
+  const rating = 4.5;
+  const reviewCount = Math.floor(Math.random() * 100) + 10;
 
   return (
-    <div 
-      onClick={handleClick}
-      className="group relative bg-gradient-to-br from-white to-slate-50 rounded-3xl shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden border border-slate-100/50 h-full flex flex-col cursor-pointer"
-    >
-      {/* Notification succès */}
-      {showSuccess && (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-semibold">
-          ✓ Ajouté au panier !
+    <Link href={`/product/${product.slug}`}>
+      <div className="bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden group cursor-pointer h-full flex flex-col">
+        {/* Image Container */}
+        <div className="relative h-48 bg-gray-100 overflow-hidden">
+          {imageUrl !== '/placeholder-product.jpg' ? (
+            <Image
+              src={imageUrl}
+              alt={product.name}
+              fill
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              className="object-cover group-hover:scale-110 transition-transform duration-500"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                // Afficher un placeholder en cas d'erreur
+              }}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gray-200">
+              <div className="text-center text-gray-400">
+                <div className="text-4xl mb-2">📦</div>
+                <div className="text-xs">Image non disponible</div>
+              </div>
+            </div>
+          )}
+          
+          {/* Badge de réduction */}
+          {product.discount && product.discount > 0 && (
+            <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold shadow-lg z-10">
+              -{product.discount}%
+            </div>
+          )}
+
+          {/* Badge de stock */}
+          {product.stock === 0 && (
+            <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center z-10">
+              <span className="text-white font-bold text-sm">Rupture de stock</span>
+            </div>
+          )}
+
+          {/* Badge nouveau */}
+          {product.created_at && 
+           new Date(product.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) && (
+            <div className="absolute top-2 right-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs font-bold shadow-lg z-10">
+              NEW
+            </div>
+          )}
+
+          {/* Bouton panier au survol */}
+          <button
+            onClick={handleAddToCart}
+            disabled={product.stock === 0}
+            className={`absolute bottom-3 right-3 bg-orange-500 text-white p-2.5 rounded-full shadow-lg transform translate-y-16 group-hover:translate-y-0 transition-all duration-300 z-10 ${
+              product.stock === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-orange-600'
+            }`}
+          >
+            <ShoppingCart className="w-4 h-4" />
+          </button>
         </div>
-      )}
 
-      {/* Badge de réduction */}
-      {hasDiscount && (
-        <div className="absolute top-3 left-3 z-10 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
-          <Zap className="w-3 h-3" />
-          -{discountPercent}%
-        </div>
-      )}
+        {/* Contenu */}
+        <div className="p-3 flex-1 flex flex-col">
+          {/* Catégorie */}
+          <div className="text-xs text-blue-600 font-semibold mb-1.5 uppercase tracking-wide">
+            {product.category}
+          </div>
 
-      {/* Bouton panier avec effet moderne */}
-      <button
-        onClick={handleAddToCart}
-        className="absolute top-3 right-3 z-10 bg-white/90 backdrop-blur-sm text-slate-700 p-2.5 rounded-xl hover:bg-amber-500 hover:text-white transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-110 group/btn"
-        title="Ajouter au panier"
-      >
-        <ShoppingCart className="w-4 h-4 group-hover/btn:scale-110 transition-transform" />
-      </button>
+          {/* Nom du produit */}
+          <h3 className="text-sm font-bold text-gray-800 mb-2 line-clamp-2 min-h-[2.5rem]">
+            {product.name}
+          </h3>
 
-      <div className="block p-5">
-        {/* Image avec effet de zoom */}
-        <div className="relative h-44 mb-4 flex items-center justify-center overflow-hidden rounded-2xl bg-white/50">
-          <img 
-            src={imageUrl} 
-            alt={product.name} 
-            className="h-40 object-contain group-hover:scale-110 transition-transform duration-500"
-            onError={(e) => {
-              // Fallback si l'image ne charge pas
-              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x400?text=Image+Non+Disponible';
-            }}
-          />
-          {/* Gradient overlay subtil au hover */}
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-        </div>
+          {/* Rating */}
+          <div className="flex items-center gap-1.5 mb-2">
+            <div className="flex items-center">
+              {[...Array(5)].map((_, i) => (
+                <Star
+                  key={i}
+                  className={`w-3 h-3 ${
+                    i < Math.floor(rating)
+                      ? 'fill-yellow-400 text-yellow-400'
+                      : 'text-gray-300'
+                  }`}
+                />
+              ))}
+            </div>
+            <span className="text-xs text-gray-600">
+              {rating} ({reviewCount})
+            </span>
+          </div>
 
-        {/* Nom du produit */}
-        <h3 className="text-sm font-semibold text-slate-800 mb-3 line-clamp-2 min-h-[2.5rem] group-hover:text-amber-600 transition-colors">
-          {product.name}
-        </h3>
-
-        {/* Section prix avec design moderne */}
-        <div className="flex items-end gap-2 mb-2">
-          <div className="flex flex-col">
-            {product.originalPrice && (
-              <span className="text-xs text-slate-400 line-through font-medium">
-                {product.originalPrice.toLocaleString()} FCFA
+          {/* Prix */}
+          <div className="mt-auto">
+            <div className="flex items-baseline gap-1.5 mb-1">
+              <span className="text-lg font-bold text-gray-900">
+                {discountedPrice.toLocaleString('fr-FR')}
               </span>
+              <span className="text-xs text-gray-600">FCFA</span>
+            </div>
+            
+            {product.discount && product.discount > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs text-gray-500 line-through">
+                  {product.price.toLocaleString('fr-FR')} FCFA
+                </span>
+                <span className="text-xs text-green-600 font-semibold">
+                  Économie: {(product.price - discountedPrice).toLocaleString('fr-FR')} F
+                </span>
+              </div>
             )}
-            <span className="text-xl font-bold bg-gradient-to-r from-amber-600 to-orange-500 bg-clip-text text-transparent">
-              {product.price.toLocaleString()} FCFA
-            </span>
           </div>
-        </div>
 
-        {/* Barre de progression "trending" subtile */}
-        <div className="mt-3 pt-3 border-t border-slate-100">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-slate-500 flex items-center gap-1">
-              <TrendingUp className="w-3 h-3" />
-              Populaire
-            </span>
-            <span className="text-amber-600 font-medium">En stock</span>
-          </div>
+          {/* Stock indicator */}
+          {product.stock > 0 && product.stock <= 10 && (
+            <div className="mt-2 text-xs text-orange-600 font-semibold">
+              ⚠️ Plus que {product.stock} !
+            </div>
+          )}
         </div>
       </div>
-
-      {/* Effet de brillance au hover */}
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 pointer-events-none" />
-    </div>
+    </Link>
   );
 }

@@ -1,117 +1,89 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Types pour la base de données
-export interface Product {
-  id: number;
-  name: string;
-  description: string | null;
-  price: number;
-  original_price: number | null;
-  discount: number | null;
-  category: string;
-  image_url: string;
-  rating: number | null;
-  reviews_count: number | null;
-  in_stock: boolean;
-  stock_quantity: number | null;
-  tags: string[] | null;
-  slug: string;
-  sections: string[] | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Customer {
-  id: string;
-  email: string;
-  full_name: string;
-  phone: string | null;
-  address: string | null;
-  city: string | null;
-  country: string;
-  created_at: string;
-}
-
-export interface Order {
-  id: number;
-  customer_id: string | null;
-  customer_email: string;
-  customer_name: string;
-  customer_phone: string | null;
-  shipping_address: string;
-  shipping_city: string;
-  shipping_country: string;
-  total_amount: number;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
-  payment_method: string | null;
-  payment_status: 'pending' | 'paid' | 'failed';
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface OrderItem {
-  id: number;
-  order_id: number;
-  product_id: number | null;
-  product_name: string;
-  product_image: string | null;
-  quantity: number;
-  price: number;
-  subtotal: number;
-  created_at: string;
-}
-
-export interface Category {
-  id: number;
-  name: string;
-  slug: string;
-  description: string | null;
-  image_url: string | null;
-  product_count: number;
-  created_at: string;
-}
-
-// Configuration Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// ============================================
-// FONCTIONS POUR LES PRODUITS
-// ============================================
+export interface Product {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  price: number;
+  image_url: string; // ✅ Changé de 'image' à 'image_url'
+  category: string;
+  stock: number;
+  discount?: number;
+  original_price?: number; // ✅ Ajouté
+  sections?: string[];
+  created_at?: string;
+}
 
-export async function getAllProducts(): Promise<Product[]> {
+export interface Order {
+  id: number;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  customer_address: string;
+  total_amount: number;
+  status: string;
+  created_at: string;
+}
+
+export interface OrderItem {
+  id: number;
+  order_id: number;
+  product_id: number;
+  product_name: string;
+  quantity: number;
+  price: number;
+}
+
+export interface CategoryStat {
+  category: string;
+  product_count: number;
+}
+
+// Récupérer tous les produits
+export async function getProducts() {
   const { data, error } = await supabase
     .from('products')
     .select('*')
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Erreur lors de la récupération des produits:', error);
+    console.error('Error fetching products:', error);
     return [];
   }
 
-  return data || [];
+  return data as Product[];
 }
 
-export async function getProductById(id: number): Promise<Product | null> {
-  const { data, error } = await supabase
+// Récupérer les produits par section avec limite optionnelle
+export async function getProductsBySection(section: string, limit?: number) {
+  let query = supabase
     .from('products')
     .select('*')
-    .eq('id', id)
-    .single();
+    .contains('sections', [section])
+    .order('created_at', { ascending: false });
 
-  if (error) {
-    console.error('Erreur lors de la récupération du produit:', error);
-    return null;
+  if (limit) {
+    query = query.limit(limit);
   }
 
-  return data;
+  const { data, error } = await query;
+
+  if (error) {
+    console.error(`Error fetching products for section ${section}:`, error);
+    return [];
+  }
+
+  return data as Product[];
 }
 
-export async function getProductBySlug(slug: string): Promise<Product | null> {
+// Récupérer un produit par son slug
+export async function getProductBySlug(slug: string) {
   const { data, error } = await supabase
     .from('products')
     .select('*')
@@ -119,252 +91,243 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
     .single();
 
   if (error) {
-    console.error('Erreur lors de la récupération du produit:', error);
+    console.error('Error fetching product by slug:', error);
     return null;
   }
 
-  return data;
+  return data as Product;
 }
 
-export async function getProductsByCategory(category: string): Promise<Product[]> {
+// Récupérer un produit par son ID
+export async function getProductById(id: number) {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error) {
+    console.error('Error fetching product by ID:', error);
+    return null;
+  }
+
+  return data as Product;
+}
+
+// Récupérer les produits en promotion (discount >= 50%)
+export async function getDealsProducts() {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .gte('discount', 50)
+    .order('discount', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching deals products:', error);
+    return [];
+  }
+
+  return data as Product[];
+}
+
+// Récupérer les produits par catégorie
+export async function getProductsByCategory(category: string) {
   const { data, error } = await supabase
     .from('products')
     .select('*')
     .eq('category', category)
-    .eq('in_stock', true)
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Erreur lors de la récupération des produits par catégorie:', error);
+    console.error('Error fetching products by category:', error);
     return [];
   }
 
-  return data || [];
+  return data as Product[];
 }
 
-export async function searchProducts(query: string): Promise<Product[]> {
+// Récupérer les stats des catégories
+export async function getCategoryStats() {
   const { data, error } = await supabase
-    .from('products')
+    .from('category_stats')
     .select('*')
-    .or(`name.ilike.%${query}%,description.ilike.%${query}%,category.ilike.%${query}%`)
-    .eq('in_stock', true);
+    .order('product_count', { ascending: false });
 
   if (error) {
-    console.error('Erreur lors de la recherche de produits:', error);
+    console.error('Error fetching category stats:', error);
     return [];
   }
 
-  return data || [];
+  return data as CategoryStat[];
 }
 
-export async function createProduct(product: Omit<Product, 'id' | 'created_at' | 'updated_at'>): Promise<Product | null> {
+// Récupérer toutes les commandes
+export async function getOrders() {
   const { data, error } = await supabase
-    .from('products')
-    .insert([product])
+    .from('orders')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching orders:', error);
+    return [];
+  }
+
+  return data as Order[];
+}
+
+// Récupérer une commande par ID
+export async function getOrderById(id: number) {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error) {
+    console.error('Error fetching order:', error);
+    return null;
+  }
+
+  return data as Order;
+}
+
+// Récupérer les items d'une commande
+export async function getOrderItems(orderId: number) {
+  const { data, error } = await supabase
+    .from('order_items')
+    .select('*')
+    .eq('order_id', orderId);
+
+  if (error) {
+    console.error('Error fetching order items:', error);
+    return [];
+  }
+
+  return data as OrderItem[];
+}
+
+// Créer une commande
+export async function createOrder(orderData: {
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  customer_address: string;
+  total_amount: number;
+  status: string;
+}) {
+  const { data, error } = await supabase
+    .from('orders')
+    .insert([orderData])
     .select()
     .single();
 
   if (error) {
-    console.error('Erreur lors de la création du produit:', error);
-    console.error('Détails:', error.message, error.details, error.hint);
-    return null;
+    console.error('Error creating order:', error);
+    throw error;
   }
 
-  return data;
+  return data as Order;
 }
 
-export async function updateProduct(id: number, updates: Partial<Product>): Promise<Product | null> {
+// Créer les items d'une commande
+export async function createOrderItems(items: {
+  order_id: number;
+  product_id: number;
+  product_name: string;
+  quantity: number;
+  price: number;
+}[]) {
+  const { data, error } = await supabase
+    .from('order_items')
+    .insert(items)
+    .select();
+
+  if (error) {
+    console.error('Error creating order items:', error);
+    throw error;
+  }
+
+  return data as OrderItem[];
+}
+
+// Mettre à jour le statut d'une commande
+export async function updateOrderStatus(orderId: number, status: string) {
+  const { data, error } = await supabase
+    .from('orders')
+    .update({ status })
+    .eq('id', orderId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating order status:', error);
+    throw error;
+  }
+
+  return data as Order;
+}
+
+// Créer un produit
+export async function createProduct(productData: Omit<Product, 'id' | 'created_at'>) {
   const { data, error } = await supabase
     .from('products')
-    .update(updates)
+    .insert([productData])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating product:', error);
+    throw error;
+  }
+
+  return data as Product;
+}
+
+// Mettre à jour un produit
+export async function updateProduct(id: number, productData: Partial<Product>) {
+  const { data, error } = await supabase
+    .from('products')
+    .update(productData)
     .eq('id', id)
     .select()
     .single();
 
   if (error) {
-    console.error('Erreur lors de la mise à jour du produit:', error);
-    return null;
+    console.error('Error updating product:', error);
+    throw error;
   }
 
-  return data;
+  return data as Product;
 }
 
-export async function deleteProduct(id: number): Promise<boolean> {
+// Supprimer un produit
+export async function deleteProduct(id: number) {
   const { error } = await supabase
     .from('products')
     .delete()
     .eq('id', id);
 
   if (error) {
-    console.error('Erreur lors de la suppression du produit:', error);
-    return false;
+    console.error('Error deleting product:', error);
+    throw error;
   }
 
   return true;
 }
 
-// ============================================
-// FONCTIONS POUR LES COMMANDES
-// ============================================
-
-export async function createOrder(order: Omit<Order, 'id' | 'created_at' | 'updated_at'>, items: Omit<OrderItem, 'id' | 'order_id' | 'created_at'>[]): Promise<Order | null> {
-  // Créer la commande
-  const { data: orderData, error: orderError } = await supabase
-    .from('orders')
-    .insert([order])
-    .select()
-    .single();
-
-  if (orderError) {
-    console.error('Erreur lors de la création de la commande:', orderError);
-    return null;
-  }
-
-  // Ajouter les articles
-  const orderItems = items.map(item => ({
-    ...item,
-    order_id: orderData.id,
-  }));
-
-  const { error: itemsError } = await supabase
-    .from('order_items')
-    .insert(orderItems);
-
-  if (itemsError) {
-    console.error('Erreur lors de l\'ajout des articles:', itemsError);
-    return null;
-  }
-
-  return orderData;
-}
-
-export async function getAllOrders(): Promise<Order[]> {
-  const { data, error } = await supabase
-    .from('orders')
-    .select('*')
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('Erreur lors de la récupération des commandes:', error);
-    return [];
-  }
-
-  return data || [];
-}
-
-export async function getOrderById(id: number): Promise<(Order & { items: OrderItem[] }) | null> {
-  const { data: orderData, error: orderError } = await supabase
-    .from('orders')
-    .select('*')
-    .eq('id', id)
-    .single();
-
-  if (orderError) {
-    console.error('Erreur lors de la récupération de la commande:', orderError);
-    return null;
-  }
-
-  const { data: itemsData, error: itemsError } = await supabase
-    .from('order_items')
-    .select('*')
-    .eq('order_id', id);
-
-  if (itemsError) {
-    console.error('Erreur lors de la récupération des articles:', itemsError);
-    return null;
-  }
-
-  return {
-    ...orderData,
-    items: itemsData || [],
-  };
-}
-
-export async function updateOrderStatus(id: number, status: Order['status']): Promise<boolean> {
-  const { error } = await supabase
-    .from('orders')
-    .update({ status })
-    .eq('id', id);
-
-  if (error) {
-    console.error('Erreur lors de la mise à jour du statut:', error);
-    return false;
-  }
-
-  return true;
-}
-
-// ============================================
-// FONCTIONS POUR LES CATÉGORIES
-// ============================================
-
-export interface CategoryStats {
-  category: string;
-  product_count: number;
-  in_stock_count: number;
-}
-
-export async function getAllCategories(): Promise<Category[]> {
-  const { data, error } = await supabase
-    .from('categories')
-    .select('*')
-    .order('name');
-
-  if (error) {
-    console.error('Erreur lors de la récupération des catégories:', error);
-    return [];
-  }
-
-  return data || [];
-}
-
-export async function getCategoryStats(): Promise<CategoryStats[]> {
-  const { data, error } = await supabase
-    .from('category_stats')
-    .select('*');
-
-  if (error) {
-    console.error('Erreur lors de la récupération des stats:', error);
-    return [];
-  }
-
-  return data || [];
-}
-
-// ============================================
-// FONCTIONS POUR LES SECTIONS
-// ============================================
-
-export async function getProductsBySection(section: string): Promise<Product[]> {
+// Rechercher des produits
+export async function searchProducts(query: string) {
   const { data, error } = await supabase
     .from('products')
     .select('*')
-    .contains('sections', [section])
-    .eq('in_stock', true)
+    .or(`name.ilike.%${query}%,description.ilike.%${query}%,category.ilike.%${query}%`)
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Erreur lors de la récupération des produits par section:', error);
+    console.error('Error searching products:', error);
     return [];
   }
 
-  return data || [];
-}
-
-// ============================================
-// FONCTIONS POUR LES STATISTIQUES
-// ============================================
-
-export async function getDashboardStats() {
-  const { data, error } = await supabase
-    .from('dashboard_stats')
-    .select('*')
-    .single();
-
-  if (error) {
-    console.error('Erreur lors de la récupération des statistiques:', error);
-    return null;
-  }
-
-  return data;
+  return data as Product[];
 }

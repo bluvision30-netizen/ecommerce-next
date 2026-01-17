@@ -1,260 +1,408 @@
-"use client";
+'use client';
 
 import { useEffect, useState } from "react";
-import { 
-  Package, 
-  ShoppingCart, 
-  Users, 
+import {
+  Package,
+  ShoppingCart,
+  Users,
   DollarSign,
   TrendingUp,
-  TrendingDown,
+  Clock,
+  CheckCircle,
+  XCircle,
   ArrowUpRight
 } from "lucide-react";
-import { getDashboardStats, getAllOrders, Order } from "@/lib/supabase";
+import { getOrders, getProducts, Order } from "@/lib/supabase";
 import Link from "next/link";
 
 interface Stats {
-  total_products: number;
-  total_orders: number;
-  pending_orders: number;
-  total_revenue: number;
-  revenue_last_30_days: number;
+  totalProducts: number;
+  totalOrders: number;
+  totalRevenue: number;
+  pendingOrders: number;
+  completedOrders: number;
+  cancelledOrders: number;
 }
 
-type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
-
 export default function DashboardPage() {
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [stats, setStats] = useState<Stats>({
+    totalProducts: 0,
+    totalOrders: 0,
+    totalRevenue: 0,
+    pendingOrders: 0,
+    completedOrders: 0,
+    cancelledOrders: 0,
+  });
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        const statsData = await getDashboardStats();
-        const ordersData = await getAllOrders();
-        
-        setStats(statsData);
-        setRecentOrders(ordersData.slice(0, 5));
-      } catch (error) {
-        console.error("Erreur:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadData();
+    loadDashboardData();
   }, []);
+
+  async function loadDashboardData() {
+    try {
+      setLoading(true);
+      
+      // Charger les produits et commandes
+      const [products, orders] = await Promise.all([
+        getProducts(),
+        getOrders()
+      ]);
+
+      // Calculer les statistiques
+      const totalRevenue = orders.reduce((sum, order) => sum + order.total_amount, 0);
+      const pendingOrders = orders.filter(o => o.status === 'pending').length;
+      const completedOrders = orders.filter(o => o.status === 'completed').length;
+      const cancelledOrders = orders.filter(o => o.status === 'cancelled').length;
+
+      setStats({
+        totalProducts: products.length,
+        totalOrders: orders.length,
+        totalRevenue,
+        pendingOrders,
+        completedOrders,
+        cancelledOrders,
+      });
+
+      // Prendre les 5 dernières commandes
+      setRecentOrders(orders.slice(0, 5));
+    } catch (error) {
+      console.error("Error loading dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <Clock className="w-4 h-4" />;
+      case 'completed':
+        return <CheckCircle className="w-4 h-4" />;
+      case 'cancelled':
+        return <XCircle className="w-4 h-4" />;
+      default:
+        return null;
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return 'En attente';
+      case 'completed':
+        return 'Complétée';
+      case 'cancelled':
+        return 'Annulée';
+      default:
+        return status;
+    }
+  };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-600"></div>
+      <div className="min-h-screen bg-gray-50 p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="animate-pulse">
+            <div className="h-12 bg-gray-300 rounded w-64 mb-8"></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="bg-white rounded-lg h-32"></div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
-  const statCards = [
-    {
-      title: "Produits",
-      value: stats?.total_products || 0,
-      icon: Package,
-      color: "bg-blue-500",
-      change: "+12%",
-      trend: "up" as const
-    },
-    {
-      title: "Commandes",
-      value: stats?.total_orders || 0,
-      icon: ShoppingCart,
-      color: "bg-green-500",
-      change: "+8%",
-      trend: "up" as const
-    },
-    {
-      title: "En attente",
-      value: stats?.pending_orders || 0,
-      icon: Users,
-      color: "bg-orange-500",
-      change: "-3%",
-      trend: "down" as const
-    },
-    {
-      title: "Revenus (30j)",
-      value: `${(stats?.revenue_last_30_days || 0).toLocaleString()} FCFA`,
-      icon: DollarSign,
-      color: "bg-purple-500",
-      change: "+23%",
-      trend: "up" as const
-    },
-  ];
-
-  const getStatusBadge = (status: OrderStatus): string => {
-    const styles: Record<OrderStatus, string> = {
-      pending: "bg-yellow-100 text-yellow-800",
-      processing: "bg-blue-100 text-blue-800",
-      shipped: "bg-purple-100 text-purple-800",
-      delivered: "bg-green-100 text-green-800",
-      cancelled: "bg-red-100 text-red-800",
-    };
-    return styles[status] || styles.pending;
-  };
-
-  const getStatusLabel = (status: OrderStatus): string => {
-    const labels: Record<OrderStatus, string> = {
-      pending: "En attente",
-      processing: "En cours",
-      shipped: "Expédié",
-      delivered: "Livré",
-      cancelled: "Annulé",
-    };
-    return labels[status] || status;
-  };
-
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600 mt-1">Vue ensemble de votre boutique</p>
-      </div>
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">
+            Tableau de bord
+          </h1>
+          <p className="text-gray-600">
+            Vue d'ensemble de votre boutique en ligne
+          </p>
+        </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statCards.map((card, index) => {
-          const Icon = card.icon;
-          return (
-            <div
-              key={index}
-              className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className={`${card.color} p-3 rounded-lg`}>
-                  <Icon className="h-6 w-6 text-white" />
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Total Products */}
+          <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-4">
+              <div className="bg-blue-100 p-3 rounded-lg">
+                <Package className="w-6 h-6 text-blue-600" />
+              </div>
+              <TrendingUp className="w-5 h-5 text-green-500" />
+            </div>
+            <h3 className="text-gray-600 text-sm font-medium mb-1">
+              Total Produits
+            </h3>
+            <p className="text-3xl font-bold text-gray-800">
+              {stats.totalProducts}
+            </p>
+          </div>
+
+          {/* Total Orders */}
+          <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-4">
+              <div className="bg-purple-100 p-3 rounded-lg">
+                <ShoppingCart className="w-6 h-6 text-purple-600" />
+              </div>
+              <TrendingUp className="w-5 h-5 text-green-500" />
+            </div>
+            <h3 className="text-gray-600 text-sm font-medium mb-1">
+              Total Commandes
+            </h3>
+            <p className="text-3xl font-bold text-gray-800">
+              {stats.totalOrders}
+            </p>
+          </div>
+
+          {/* Total Revenue */}
+          <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-4">
+              <div className="bg-green-100 p-3 rounded-lg">
+                <DollarSign className="w-6 h-6 text-green-600" />
+              </div>
+              <TrendingUp className="w-5 h-5 text-green-500" />
+            </div>
+            <h3 className="text-gray-600 text-sm font-medium mb-1">
+              Revenu Total
+            </h3>
+            <p className="text-3xl font-bold text-gray-800">
+              {stats.totalRevenue.toLocaleString('fr-FR')} FCFA
+            </p>
+          </div>
+
+          {/* Pending Orders */}
+          <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-4">
+              <div className="bg-yellow-100 p-3 rounded-lg">
+                <Clock className="w-6 h-6 text-yellow-600" />
+              </div>
+              <span className="text-sm text-gray-600">En attente</span>
+            </div>
+            <h3 className="text-gray-600 text-sm font-medium mb-1">
+              Commandes en Attente
+            </h3>
+            <p className="text-3xl font-bold text-gray-800">
+              {stats.pendingOrders}
+            </p>
+          </div>
+        </div>
+
+        {/* Additional Stats Row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          {/* Completed Orders */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-green-100 p-3 rounded-lg">
+                  <CheckCircle className="w-6 h-6 text-green-600" />
                 </div>
-                <div className={`flex items-center gap-1 text-sm ${
-                  card.trend === 'up' ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {card.trend === 'up' ? (
-                    <TrendingUp className="h-4 w-4" />
-                  ) : (
-                    <TrendingDown className="h-4 w-4" />
-                  )}
-                  <span className="font-medium">{card.change}</span>
+                <div>
+                  <h3 className="text-gray-600 text-sm font-medium">
+                    Commandes Complétées
+                  </h3>
+                  <p className="text-2xl font-bold text-gray-800">
+                    {stats.completedOrders}
+                  </p>
                 </div>
               </div>
-              <div>
-                <p className="text-gray-600 text-sm">{card.title}</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">
-                  {card.value}
+              <div className="text-right">
+                <p className="text-sm text-gray-600">Taux de réussite</p>
+                <p className="text-lg font-bold text-green-600">
+                  {stats.totalOrders > 0
+                    ? Math.round((stats.completedOrders / stats.totalOrders) * 100)
+                    : 0}
+                  %
                 </p>
               </div>
             </div>
-          );
-        })}
-      </div>
-
-      {/* Recent Orders */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Commandes récentes</h2>
-            <p className="text-gray-600 text-sm mt-1">Dernières commandes passées</p>
           </div>
+
+          {/* Cancelled Orders */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-red-100 p-3 rounded-lg">
+                  <XCircle className="w-6 h-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-gray-600 text-sm font-medium">
+                    Commandes Annulées
+                  </h3>
+                  <p className="text-2xl font-bold text-gray-800">
+                    {stats.cancelledOrders}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-gray-600">Taux d'annulation</p>
+                <p className="text-lg font-bold text-red-600">
+                  {stats.totalOrders > 0
+                    ? Math.round((stats.cancelledOrders / stats.totalOrders) * 100)
+                    : 0}
+                  %
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Orders */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-800">
+                Commandes Récentes
+              </h2>
+              <Link
+                href="/admin/orders"
+                className="text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1"
+              >
+                Voir tout
+                <ArrowUpRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
+
+          {recentOrders.length === 0 ? (
+            <div className="p-12 text-center text-gray-500">
+              <ShoppingCart className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+              <p>Aucune commande pour le moment</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      ID
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Client
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Montant
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Statut
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {recentOrders.map((order) => (
+                    <tr key={order.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        #{order.id}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {order.customer_name}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {order.customer_email}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                        {order.total_amount.toLocaleString('fr-FR')} FCFA
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(
+                            order.status
+                          )}`}
+                        >
+                          {getStatusIcon(order.status)}
+                          {getStatusText(order.status)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(order.created_at).toLocaleDateString('fr-FR')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <Link
+                          href={`/admin/orders/${order.id}`}
+                          className="text-blue-600 hover:text-blue-700 font-semibold"
+                        >
+                          Détails
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+          <Link
+            href="/admin/products/new"
+            className="bg-blue-600 text-white p-6 rounded-lg shadow-md hover:bg-blue-700 transition-colors flex items-center justify-between group"
+          >
+            <div>
+              <h3 className="font-bold text-lg mb-1">Nouveau Produit</h3>
+              <p className="text-blue-100 text-sm">
+                Ajouter un produit à la boutique
+              </p>
+            </div>
+            <Package className="w-8 h-8 group-hover:scale-110 transition-transform" />
+          </Link>
+
           <Link
             href="/admin/orders"
-            className="flex items-center gap-2 text-amber-600 hover:text-amber-700 font-medium text-sm"
+            className="bg-purple-600 text-white p-6 rounded-lg shadow-md hover:bg-purple-700 transition-colors flex items-center justify-between group"
           >
-            Voir tout
-            <ArrowUpRight className="h-4 w-4" />
+            <div>
+              <h3 className="font-bold text-lg mb-1">Gérer Commandes</h3>
+              <p className="text-purple-100 text-sm">
+                Voir toutes les commandes
+              </p>
+            </div>
+            <ShoppingCart className="w-8 h-8 group-hover:scale-110 transition-transform" />
+          </Link>
+
+          <Link
+            href="/admin/products"
+            className="bg-green-600 text-white p-6 rounded-lg shadow-md hover:bg-green-700 transition-colors flex items-center justify-between group"
+          >
+            <div>
+              <h3 className="font-bold text-lg mb-1">Voir Produits</h3>
+              <p className="text-green-100 text-sm">
+                Gérer l'inventaire
+              </p>
+            </div>
+            <Package className="w-8 h-8 group-hover:scale-110 transition-transform" />
           </Link>
         </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Client
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Montant
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Statut
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {recentOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                    Aucune commande pour le moment
-                  </td>
-                </tr>
-              ) : (
-                recentOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      #{order.id}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{order.customer_name}</div>
-                      <div className="text-sm text-gray-500">{order.customer_email}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {order.total_amount.toLocaleString()} FCFA
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadge(order.status)}`}>
-                        {getStatusLabel(order.status)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(order.created_at).toLocaleDateString('fr-FR')}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Link
-          href="/admin/products/new"
-          className="bg-gradient-to-br from-amber-500 to-orange-500 text-white rounded-xl p-6 hover:shadow-lg transition-shadow"
-        >
-          <Package className="h-8 w-8 mb-3" />
-          <h3 className="font-bold text-lg mb-1">Ajouter un produit</h3>
-          <p className="text-white/90 text-sm">Créer un nouveau produit</p>
-        </Link>
-
-        <Link
-          href="/admin/orders"
-          className="bg-gradient-to-br from-blue-500 to-purple-500 text-white rounded-xl p-6 hover:shadow-lg transition-shadow"
-        >
-          <ShoppingCart className="h-8 w-8 mb-3" />
-          <h3 className="font-bold text-lg mb-1">Gérer les commandes</h3>
-          <p className="text-white/90 text-sm">Voir toutes les commandes</p>
-        </Link>
-
-        <Link
-          href="/admin/settings"
-          className="bg-gradient-to-br from-green-500 to-teal-500 text-white rounded-xl p-6 hover:shadow-lg transition-shadow"
-        >
-          <Users className="h-8 w-8 mb-3" />
-          <h3 className="font-bold text-lg mb-1">Paramètres</h3>
-          <p className="text-white/90 text-sm">Configurer la boutique</p>
-        </Link>
       </div>
     </div>
   );

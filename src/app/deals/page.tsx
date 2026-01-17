@@ -43,7 +43,7 @@ export default function DealsPage() {
           <span className="font-bold">SUPER PROMOTIONS</span>
         </div>
         <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-          Jusqu'à -50% et plus !
+          Jusquà -50% et plus !
         </h1>
         <p className="text-xl text-gray-600">
           {products.length} produit{products.length > 1 ? 's' : ''} en promotion exceptionnelle
